@@ -4,6 +4,8 @@ import com.josafaverissimo.models.Book;
 import com.josafaverissimo.models.Book_;
 import com.josafaverissimo.models.Publisher;
 import com.josafaverissimo.models.Publisher_;
+import com.josafaverissimo.queries.BookQueries;
+import com.josafaverissimo.queries.BookQueries_;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
@@ -15,7 +17,9 @@ import org.hibernate.query.criteria.CriteriaDefinition;
 public class App {
   public static void main(String[] args) {
     SessionFactory sessionFactory =
-        new HibernatePersistenceConfiguration("Bookshop", App.class).createEntityManagerFactory();
+        new HibernatePersistenceConfiguration("Bookshop", App.class)
+            .managedClass(BookQueries.class)
+            .createEntityManagerFactory();
 
     sessionFactory.inTransaction(
         session -> {
@@ -73,7 +77,13 @@ public class App {
 
           var result = session.createSelectionQuery(query).getResultList();
 
-          System.out.println(String.format("got %d items", result.size()));
+          var a =
+              session
+                  .createQuery(BookQueries_._BooksByTitle_)
+                  .setParameter("titlePattern", "%ett%")
+                  .getResultList();
+
+          System.out.println(String.format("got %d items", a.size()));
         });
   }
 }
