@@ -1,15 +1,16 @@
 package com.josafaverissimo;
 
-import com.josafaverissimo.models.Author;
 import com.josafaverissimo.models.Book;
-import com.josafaverissimo.models.Person;
+import com.josafaverissimo.models.Book_;
 import com.josafaverissimo.models.Publisher;
-
-import java.util.concurrent.atomic.AtomicReference;
-
-import org.hibernate.Hibernate;
+import com.josafaverissimo.models.Publisher_;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import org.hibernate.SessionFactory;
 import org.hibernate.jpa.HibernatePersistenceConfiguration;
+import org.hibernate.query.criteria.CriteriaDefinition;
 
 public class App {
   public static void main(String[] args) {
@@ -18,61 +19,61 @@ public class App {
 
     sessionFactory.inTransaction(
         session -> {
-          final var pu1 = new Publisher("1", "pub");
-          final var pu2 = new Publisher("2", "sub");
+          String titlePattern = "epi%";
+          String namePattern = "_ub";
 
-          session.persist(pu1);
-          session.persist(pu2);
+          var builder = session.getCriteriaBuilder();
 
-          final var b1 = new Book("1123", "MyBook", pu1);
-          final var b2 = new Book("1223", "BookBest", pu2);
-          final var b3 = new Book("1323", "Better", pu1);
+          CriteriaQuery<Book> query = builder.createQuery(Book.class);
+          Root<Book> book = query.from(Book.class);
+          Predicate where = builder.conjunction();
 
-          session.persist(b1);
-          session.persist(b2);
-          session.persist(b3);
+          if (titlePattern != null) {
+            where = builder.and(where, builder.like(book.get(Book_.title), titlePattern));
+          }
 
-          final var p1 = new Person("1", "josafa");
-          final var p2 = new Person("2", "verissimo");
+          if (namePattern != null) {
+            Join<Book, Publisher> publisher = book.join(Book_.publisher);
 
-          session.persist(p1);
-          session.persist(p2);
+            where = builder.and(where, builder.like(publisher.get(Publisher_.name), namePattern));
+          }
 
-          final var a1 = new Author("1", p1);
-          final var a2 = new Author("2", p2);
+          var criteriaQuery =
+              query.select(book).where(where).orderBy(builder.asc(book.get(Book_.title)));
 
-          a1.getBooks().add(b1);
-          a1.getBooks().add(b2);
-          a1.getBooks().add(b3);
-          a2.getBooks().add(b1);
-          a2.getBooks().add(b2);
-          a2.getBooks().add(b3);
+          var result = session.createSelectionQuery(criteriaQuery).getResultList();
 
-          //   System.out.println(a);
-          // System.out.println(b);
-
-          session.persist(a1);
-          session.persist(a2);
+          // System.out.println(String.format("got %d results", result.size()));
         });
 
-    var book = sessionFactory.fromTransaction(
+    sessionFactory.inTransaction(
         session -> {
-          var book1 = session.find(Book.class, "1123");
+          String titlePattern = "epi%";
+          String namePattern = "_ub";
 
-          Hibernate.initialize(book1.getAuthors());
+          CriteriaDefinition<Book> query =
+              new CriteriaDefinition<>(sessionFactory, Book.class) {
+                {
+                  Root<Book> book = from(Book.class);
 
-          return book1;
+                  select(book);
+
+                  if (titlePattern != null) {
+                    restrict(like(book.get(Book_.title), titlePattern));
+                  }
+
+                  if (namePattern != null) {
+                    Join<Book, Publisher> publisher = book.join(Book_.publisher);
+                    restrict(like(publisher.get(Publisher_.name), namePattern));
+                  }
+
+                  orderBy(asc(book.get(Book_.title)));
+                }
+              };
+
+          var result = session.createSelectionQuery(query).getResultList();
+
+          System.out.println(String.format("got %d items", result.size()));
         });
-
-    sessionFactory.inTransaction(session -> {
-      session.createMutationQuery("update Book b set b.title = :t where b.id = :id")
-        .setParameter("t", "epiciic")
-        .setParameter("id", "1223")
-        .executeUpdate();
-
-    });
-
-
-    System.out.println(book.getAuthors().size());
   }
 }

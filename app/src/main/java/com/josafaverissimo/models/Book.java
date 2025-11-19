@@ -36,6 +36,7 @@ public class Book {
     this.id = id;
     this.title = title;
     this.publisher = publisher;
+    this.createdAt = ZonedDateTime.now();
   }
 
   public String getTitle() {
